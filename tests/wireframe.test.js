@@ -53,3 +53,42 @@ test('direct tubular path preserves all unique indexed and non-indexed triangle 
   assert.equal(wire.geometry.disposed,1);
   assert.equal(wire.material.disposed,1);
 });
+
+test('direct tubular construction disposes resources when instancing or matrix setup fails',()=>{
+  const vertices=[0,0,0,1,0,0,0,1,0];
+  const geometry={
+    getAttribute:()=>({count:3,getX:index=>vertices[index*3],getY:index=>vertices[index*3+1],getZ:index=>vertices[index*3+2]}),
+    getIndex:()=>null,
+  };
+  const allocated=[];
+  class CylinderGeometry {constructor(){this.disposed=0;allocated.push(this)}dispose(){this.disposed++}}
+  class Material {constructor(){this.disposed=0;allocated.push(this)}dispose(){this.disposed++}}
+  class Vector3 {
+    constructor(x=0,y=0,z=0){this.set(x,y,z)}
+    set(x,y,z){Object.assign(this,{x,y,z});return this}
+    subVectors(a,b){return this.set(a.x-b.x,a.y-b.y,a.z-b.z)}
+    length(){return Math.hypot(this.x,this.y,this.z)}
+    addVectors(a,b){return this.set(a.x+b.x,a.y+b.y,a.z+b.z)}
+    multiplyScalar(value){return this.set(this.x*value,this.y*value,this.z*value)}
+    normalize(){const length=this.length()||1;return this.set(this.x/length,this.y/length,this.z/length)}
+  }
+  class Matrix4 {compose(){return this}}
+  class Quaternion {setFromUnitVectors(){return this}}
+  class InstancedMesh {
+    constructor(){throw new Error('instancing failed')}
+  }
+  const THREE={CylinderGeometry,MeshPhysicalMaterial:Material,InstancedMesh,Matrix4,Quaternion,Vector3};
+  assert.throws(()=>createWireframe(THREE,geometry,{full:true,tubeRadius:0.01}),/instancing failed/);
+  assert.equal(allocated.length,2);
+  assert.deepEqual(allocated.map(resource=>resource.disposed),[1,1]);
+
+  allocated.length=0;
+  class WorkingInstancedMesh {
+    constructor(){this.instanceMatrix={}}
+    setMatrixAt(){throw new Error('matrix setup failed')}
+  }
+  THREE.InstancedMesh=WorkingInstancedMesh;
+  assert.throws(()=>createWireframe(THREE,geometry,{full:true,tubeRadius:0.01}),/matrix setup failed/);
+  assert.equal(allocated.length,2);
+  assert.deepEqual(allocated.map(resource=>resource.disposed),[1,1]);
+});
