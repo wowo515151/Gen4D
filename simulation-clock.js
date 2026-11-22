@@ -11,6 +11,7 @@ export function createSimulationClock({now=0,time=0,playing=true,speed=1,visible
   return{
     tick:advance,
     setPlaying(value,now){advance(now);isPlaying=Boolean(value);return simulationTime},
+    pauseAt(value,now){advance(now);isPlaying=false;if(Number.isFinite(value))simulationTime=value;return simulationTime},
     setSpeed(value,now){advance(now);playbackSpeed=Number(value);return simulationTime},
     setVisible(value,now){advance(now);isVisible=Boolean(value);return simulationTime},
     reset(now){previous=Math.max(now,previous);simulationTime=0;return simulationTime},

@@ -16,6 +16,22 @@ test('pause stops the clock immediately and resume starts from its transition ti
   assert.equal(clock.tick(11000),3.5,'resumed playback starts at its own transition');
 });
 
+test('pause anchors to the displayed snapshot and resume adds only subsequent playback',()=>{
+  const clock=createSimulationClock({now:0,speed:4});
+  assert.equal(clock.tick(1500),6);
+  assert.equal(clock.pauseAt(4.03,2500),4.03,'pause uses the timestamp represented by the visible field');
+  assert.equal(clock.tick(9000),4.03,'paused wall time does not advance from the displayed snapshot');
+  assert.equal(clock.setPlaying(true,10000),4.03,'resume starts at the displayed snapshot time');
+  assert.equal(clock.tick(10500),6.03,'only post-resume playback advances the clock');
+});
+
+test('pausing before the first snapshot freezes the current clock instead of rewinding',()=>{
+  const clock=createSimulationClock({now:0,speed:4});
+  assert.equal(clock.tick(500),2);
+  assert.equal(clock.pauseAt(null,750),3,'without a displayed snapshot, pause keeps current simulation time');
+  assert.equal(clock.tick(5000),3);
+});
+
 test('hidden and pagehide intervals are excluded after visibility restoration',()=>{
   const clock=createSimulationClock({now:0});
   assert.equal(clock.setVisible(false,2000),2,'time up to the hide transition is counted');

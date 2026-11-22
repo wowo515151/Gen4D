@@ -10,7 +10,7 @@ export function highestActiveAngularFrequency(set, terms, k, parameter) {
   return highest;
 }
 
-/** Describe temporal sampling between two successfully displayed field surfaces. */
+/** Describe temporal sampling between two successfully completed field snapshots. */
 export function temporalSamplingStatus(angularFrequency, previousTime, currentTime) {
   if (!(angularFrequency > 0) || !Number.isFinite(angularFrequency) ||
       !Number.isFinite(previousTime) || !Number.isFinite(currentTime)) return null;
@@ -20,7 +20,7 @@ export function temporalSamplingStatus(angularFrequency, previousTime, currentTi
   if (samplesPerCycle >= 4) return null;
   const sampleCount = samplesPerCycle < 0.1 ? '<0.1' : samplesPerCycle.toFixed(1);
   const alias = samplesPerCycle <= 2 ? ' At or below the temporal Nyquist limit, oscillation may be aliased.' : '';
-  return `Temporal sampling warning: displayed surfaces are about ${sampleCount} per fastest active oscillation cycle.${alias} Playback speed or rebuild latency can hide changes between surfaces; the plot is a visual approximation.`;
+  return `Temporal sampling warning: successful field snapshots are about ${sampleCount} per fastest active oscillation cycle.${alias} An isosurface can appear between snapshots; playback speed or rebuild latency can hide changes. The plot is a visual approximation.`;
 }
 
 /** Keep the displayed plot clock readable without hiding progress at slow speeds. */
@@ -31,19 +31,18 @@ export function formatPlotTime(time, speed) {
   return time.toFixed(decimals);
 }
 
-/** Track only surfaces that are actually shown, with explicit reset/no-surface handling. */
+/** Track successful field snapshots, including snapshots with no isosurface. */
 export function createTemporalSampler() {
-  let previousDisplayedTime = null;
+  let previousSnapshotTime = null;
+  let previousWarning = null;
   return {
-    reset() { previousDisplayedTime = null; },
-    display(angularFrequency, time, hasSurface = true) {
-      if (!hasSurface || !Number.isFinite(time)) {
-        previousDisplayedTime = null;
-        return null;
-      }
-      const message = temporalSamplingStatus(angularFrequency, previousDisplayedTime, time);
-      previousDisplayedTime = time;
-      return message;
+    reset() { previousSnapshotTime = null; previousWarning = null; },
+    snapshot(angularFrequency, time) {
+      if (!Number.isFinite(time)) return previousWarning;
+      if (previousSnapshotTime !== null && time <= previousSnapshotTime) return previousWarning;
+      previousWarning = temporalSamplingStatus(angularFrequency, previousSnapshotTime, time);
+      previousSnapshotTime = time;
+      return previousWarning;
     }
   };
 }
