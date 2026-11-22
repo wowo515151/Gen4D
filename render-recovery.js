@@ -21,3 +21,10 @@ export function pauseBuildState(revision,displayedSnapshotTime,pendingEdit=false
 export function canStartBuild({dirty,workerBusy,allowed=true}){
   return Boolean(dirty&&!workerBusy&&allowed);
 }
+
+/** Stop unsupported large-grid retries until a user action changes the build request. */
+export function blockUnavailableBuild(rebuildGate,resolution){
+  if(Number(resolution)<=19)return false;
+  rebuildGate.markFailure();
+  return true;
+}

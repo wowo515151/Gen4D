@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildResultIsCurrent,canStartBuild,createRebuildGate,pauseBuildState} from '../render-recovery.js';
+import {blockUnavailableBuild,buildResultIsCurrent,canStartBuild,createRebuildGate,pauseBuildState} from '../render-recovery.js';
 
 test('a rebuild failure stays blocked until an explicit retry request',()=>{
   const gate=createRebuildGate();
@@ -52,4 +52,19 @@ test('a resource-limit failure cannot trigger another automatic rebuild',()=>{
   assert.equal(gate.canAttempt(true),false);
   gate.retry();
   assert.equal(gate.canAttempt(true),true,'a user retry can re-arm the rebuild');
+});
+
+test('large-grid worker loss pauses repeated automatic retries until a user action retries',()=>{
+  const gate=createRebuildGate();
+  assert.equal(blockUnavailableBuild(gate,25),true,'the 25-point grid cannot use synchronous fallback');
+  assert.equal(gate.canAttempt(true),false,'playback cannot re-dirty an unsupported build every frame');
+  assert.equal(canStartBuild({dirty:true,workerBusy:false,allowed:gate.canAttempt(true)}),false);
+  gate.retry();
+  assert.equal(gate.canAttempt(true),true,'a user action can explicitly retry after changing controls');
+});
+
+test('worker loss preserves synchronous fallback at 19 points and below',()=>{
+  const gate=createRebuildGate();
+  assert.equal(blockUnavailableBuild(gate,19),false);
+  assert.equal(gate.canAttempt(true),true,'small builds remain eligible for synchronous fallback');
 });
