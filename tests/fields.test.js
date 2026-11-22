@@ -125,3 +125,28 @@ test('isosurface extraction crosses a sampled plane at the expected position',()
   const axis=[-1,0,1], grid={axes:[axis,axis,axis],cells:axis.map(x=>axis.map(()=>axis.map(()=>({value:x,row:null})))),world:(a,i)=>a[i]};
   const result=extractIsosurface(grid,0.25);assert.ok(result.triangleCount>0);for(let i=0;i<result.positions.length;i+=3)assert.ok(Math.abs(result.positions[i]-0.25)<1e-6);
 });
+
+test('grid-aligned thresholds preserve the plane and discard zero-area equality triangles',()=>{
+  const axis=[-1,0,1],grid={axes:[axis,axis,axis],cells:axis.map(x=>axis.map(()=>axis.map(()=>({value:x,row:null})))),world:(a,i)=>a[i]};
+  const result=extractIsosurface(grid,0);
+  assert.ok(result.triangleCount>0);
+  for(let i=0;i<result.positions.length;i+=9){
+    const [ax,ay,az,bx,by,bz,cx,cy,cz]=result.positions.slice(i,i+9);
+    const ab=[bx-ax,by-ay,bz-az],ac=[cx-ax,cy-ay,cz-az];
+    const normal=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];
+    assert.ok(normal.some(component=>component!==0),'each emitted triangle has nonzero area');
+    assert.equal(ax,0,'the grid-aligned surface remains at the requested level');
+  }
+});
+
+test('near-grid thresholds discard triangles that collapse in rendered Float32 geometry',()=>{
+  const axis=[-1,0,1],worldAxis=[-2.5,0,2.5],grid={axes:[axis,axis,axis],cells:axis.map(x=>axis.map(()=>axis.map(()=>({value:x,row:null})))),world:(a,i)=>worldAxis[i]};
+  const result=extractIsosurface(grid,0.999999999);
+  assert.ok(result.triangleCount>0,'representable crossing triangles remain');
+  for(let i=0;i<result.positions.length;i+=9){
+    const [ax,ay,az,bx,by,bz,cx,cy,cz]=result.positions.slice(i,i+9);
+    const ab=[bx-ax,by-ay,bz-az],ac=[cx-ax,cy-ay,cz-az];
+    const normal=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];
+    assert.ok(normal.some(component=>component!==0),'every emitted Float32 triangle has nonzero area');
+  }
+});

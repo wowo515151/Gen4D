@@ -19,6 +19,14 @@ test('worker results retain time when the requested isosurface is absent',()=>{
   assert.deepEqual(result.levels,[]);
 });
 
+test('zero-wave fields at an equal threshold produce a truthful no-surface result',()=>{
+  const request={...settings(0),n:13,levels:[0],params:{...settings(0).params,terms:[{vector:[1,0,0],weight:0,phase:0}]}};
+  const result=buildFieldGrid(request);
+  assert.equal(result.revision,1);
+  assert.equal(result.time,0);
+  assert.deepEqual(result.levels,[],'a constant field equal to the requested level has no two-dimensional surface');
+});
+
 test('skipped earlier and middle levels retain their requested identity and color',()=>{
   const requested=[2,0,-2,.5];
   const result=buildFieldGrid({...settings(0),n:13,levels:requested});
