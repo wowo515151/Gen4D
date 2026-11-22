@@ -56,7 +56,8 @@ export function formatEquation(set,equation,configuredTerms){
     const parts=[[x,'x'],[y,'y'],[z,'z']].filter(([value])=>value!==0);
     return parts.length?parts.map(([value,variable],i)=>`${value<0?'−':i?'+':''}${Math.abs(value)===1?'':Math.abs(value)}${variable}`).join(''):'0';
   };
-  const formatted=terms.map(({vector,weight=1,phase=0},index)=>{const magnitude=Math.hypot(...vector),squared=Math.round(magnitude*magnitude),integerVector=vector.every(Number.isInteger),factor=integerVector?(Number.isInteger(Math.sqrt(squared))?String(Math.sqrt(squared)):`√${squared}`):String(Number(magnitude.toFixed(2)));const omega=factor==='1'?'k':factor==='0'?'0':`${factor}k`;const coefficient=weight===1?'':`${Number(weight.toFixed(2))}·`;const offset=phase===0?'':` + Δφ${index+1}`;return `${coefficient}cos(k(${spatial(vector)}) − Ω(${omega})t + φ${offset})`});
+  const numberText=value=>Object.is(value,-0)?'0':String(value);
+  const formatted=terms.map(({vector,weight=1,phase=0},index)=>{const magnitude=Math.hypot(...vector),squared=Math.round(magnitude*magnitude),integerVector=vector.every(Number.isInteger),factor=integerVector?(Number.isInteger(Math.sqrt(squared))?String(Math.sqrt(squared)):`√${squared}`):`≈${numberText(magnitude)}`;const omega=factor==='1'?'k':factor==='0'?'0':`${factor}k`;const coefficient=weight===1?'':`${numberText(weight)}·`;const offset=phase===0?'':` + Δφ${index+1}`;return `${coefficient}cos(k(${spatial(vector)}) − Ω(${omega})t + φ${offset})`});
   const defaultWeights=terms.every(({weight=1,phase=0},index)=>weight===1&&phase===0&&JSON.stringify(terms[index].vector)===JSON.stringify(equation.terms[index].vector));
   const denominator=defaultWeights?(terms.length===1?'':`/${terms.length}`):'/Σ|aᵢ|';
   return `S = A${denominator} [${formatted.join(' + ')}]\n${set.dispersion}`;
@@ -64,6 +65,6 @@ export function formatEquation(set,equation,configuredTerms){
 
 export function formatFieldSummary(set,equation,params){
   const values=[`amplitude A ${params.amplitude}`,`wave number k ${params.k}`,`phase φ ${params.phase}`,`${set.parameterLabel} ${params.parameter}`];
-  const terms=params.terms?.map(({vector,weight,phase},index)=>`wave ${index+1} vector (${vector.map(value=>Number(value.toFixed(2))).join(', ')}), relative amplitude ${weight}, phase offset ${phase}`).join('; ');
+  const terms=params.terms?.map(({vector,weight,phase},index)=>`wave ${index+1} vector (${vector.map(value=>Object.is(value,-0)?'0':String(value)).join(', ')}), relative amplitude ${weight}, phase offset ${phase}`).join('; ');
   return `Current field: ${set.name}. Pattern: ${equation.name}. PDE: ${set.pde}. Formula: ${formatEquation(set,equation,params.terms).replace(/\n/g,'; ')}. Parameters: ${values.join('; ')}${terms?`; wave components: ${terms}`:''}.`;
 }

@@ -63,7 +63,7 @@ test('editable per-wave vectors, relative amplitudes, and phase offsets preserve
   }
   const custom=equations[4].terms.map(({vector})=>({vector,weight:0.5,phase:0.25}));
   assert.match(formatEquation(sets[1],equations[4],custom),/Σ\|aᵢ\|/);
-  assert.match(formatEquation(sets[1],equations[4],[{...custom[0],vector:[0.3,1.1,0]},{...custom[1],vector:[1.2,-0.4,0]}]),/Ω\(1\.14k\)/);
+  assert.match(formatEquation(sets[1],equations[4],[{...custom[0],vector:[0.3,1.1,0]},{...custom[1],vector:[1.2,-0.4,0]}]),/Ω\(≈1\.140175425099138k\)/);
   const base={amplitude:1,k:1.2,phase:0,parameter:1},shift=(point,axis,amount)=>point.map((value,i)=>value+(i===axis?amount:0));
   assert.equal(sample(sets[1],equations[0],{...base,terms:[{vector:[0,0,0],weight:1,phase:0}]},0.2,-0.3,0.5,1),Math.cos(1));
   assert.equal(sample(sets[1],equations[0],{...base,terms:[{vector:[0,0,0],weight:0,phase:0}]},0.2,-0.3,0.5,1),0);
@@ -76,6 +76,32 @@ test('editable per-wave vectors, relative amplitudes, and phase offsets preserve
     const residual=set.id==='em'?dtt-parameter**2*lap(...q):set.id==='relativity'?dtt-lap(...q)+parameter**2*center:dtt+parameter**2*biharmonic;
     assert.ok(Math.abs(residual)<0.012,`${set.id}: zero-vector residual ${residual}`);
   }
+});
+
+test('equation and accessible readouts preserve tiny and noninteger editable values',()=>{
+  const equation=equations[1],terms=[
+    {vector:[0.001,-2,0],weight:0.001,phase:0},
+    {vector:[0.3,1.1,0],weight:1.23456789,phase:-0.00001}
+  ];
+  const formula=formatEquation(sets[1],equation,terms);
+  assert.match(formula,/0\.001·cos\(k\(0\.001x−2y\)/);
+  assert.match(formula,/Ω\(≈2\.0000002499999843k\)/);
+  assert.match(formula,/1\.23456789·cos\(k\(0\.3x\+1\.1y\) − Ω\(≈1\.140175425099138k\)t/);
+  assert.match(formula,/Δφ2/);
+
+  const summary=formatFieldSummary(sets[1],equation,{amplitude:1,k:1.2,phase:0,parameter:1,terms});
+  assert.match(summary,/vector \(0\.001, -2, 0\), relative amplitude 0\.001/);
+  assert.match(summary,/vector \(0\.3, 1\.1, 0\), relative amplitude 1\.23456789/);
+
+  const params={amplitude:1.7,k:0.8,phase:0.4,parameter:1.2,terms};
+  const actual=sample(sets[1],equation,params,0.2,-0.3,0.5,0.7);
+  const norm=terms.reduce((sum,item)=>sum+Math.abs(item.weight),0);
+  const expected=params.amplitude*terms.reduce((sum,item)=>sum+item.weight*Math.cos(params.k*(item.vector[0]*0.2+item.vector[1]*-0.3+item.vector[2]*0.5)-sets[1].omega(params.k*Math.hypot(...item.vector),params.parameter)*0.7+params.phase+item.phase),0)/norm;
+  assert.equal(actual,expected,'formatting changes must not alter field sampling');
+
+  assert.match(formatEquation(sets[1],equations[0],[{vector:[-1,2,0],weight:1,phase:0}]),/k\(−x\+2y\).*Ω\(√5k\)/);
+  assert.match(formatEquation(sets[1],equations[0],[{vector:[0,0,0],weight:1,phase:0}]),/k\(0\) − Ω\(0\)t/);
+  assert.equal(formatEquation(sets[1],equations[1],[{vector:[0.001,0,0],weight:0,phase:0},{vector:[-1,0,0],weight:0,phase:0}]),'S = 0\n'+sets[1].dispersion);
 });
 
 test('accessible field summary names the selected PDE, pattern, and current parameters',()=>{
