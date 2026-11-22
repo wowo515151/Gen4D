@@ -3,12 +3,15 @@ import {retainCarPaintEnvironment} from './lib/three-viz/plotters/shared/materia
 import {sets,equations,formatEquation,formatFieldSummary,clampFinite,samplingWarning} from './fields.js';
 import {buildFieldGrid,TUBE_EDGE_BUDGET} from './field-worker.js';
 import {createRebuildGate,buildResultIsCurrent} from './render-recovery.js';
+import {createTemporalSampler,formatPlotTime,highestActiveAngularFrequency} from './temporal-sampling.js';
 
 const $=id=>document.getElementById(id), THREE=window.THREE;
-const ui={set:$('set'),equation:$('equation'),mode:$('mode'),resolution:$('resolution'),levels:$('levels'),level:$('level'),status:$('status')};
+const ui={set:$('set'),equation:$('equation'),mode:$('mode'),resolution:$('resolution'),levels:$('levels'),level:$('level'),speed:$('playback-speed'),status:$('status')};
 let set=sets[0], equation=equations[5], params={amplitude:1,k:1.2,phase:0,parameter:1}, time=0, playing=true, dirty=true, lastBuild=0, editRevision=0;
 const rebuildGate=createRebuildGate();
-function requestBuild(){editRevision++;dirty=true}
+const temporalSampler=createTemporalSampler();
+function resetTemporalSampling(){temporalSampler.reset();$('temporal-warning').hidden=true;$('temporal-warning').textContent=''}
+function requestBuild(){editRevision++;dirty=true;resetTemporalSampling()}
 for(const item of sets) ui.set.add(new Option(item.name,item.id));
 for(const [index,item] of equations.entries()) ui.equation.add(new Option(item.name,String(index)));
 ui.equation.value='5';
@@ -55,7 +58,7 @@ function updateDisplay(){
   updateSamplingWarning();rebuildGate.retry();requestBuild();
 }
 ui.resolution.addEventListener('change',()=>{updateSamplingWarning();rebuildGate.retry();requestBuild()});for(const control of [ui.mode,ui.levels,ui.level]) control.addEventListener('input',updateDisplay);
-$('play').addEventListener('click',()=>{playing=!playing;if(playing){rebuildGate.retry();requestBuild()}$('play').textContent=playing?'Ⅱ':'▶';$('play').setAttribute('aria-label',playing?'Pause animation':'Play animation');$('play').setAttribute('aria-pressed',String(playing))});$('reset').addEventListener('click',()=>{time=0;rebuildGate.retry();requestBuild()});
+$('play').addEventListener('click',()=>{playing=!playing;resetTemporalSampling();if(playing){rebuildGate.retry();requestBuild()}$('play').textContent=playing?'Ⅱ':'▶';$('play').setAttribute('aria-label',playing?'Pause animation':'Play animation');$('play').setAttribute('aria-pressed',String(playing))});ui.speed.addEventListener('change',()=>{resetTemporalSampling()});$('reset').addEventListener('click',()=>{time=0;rebuildGate.retry();requestBuild()});
 updateLabels();updateDisplay();
 try {
   const viewport=$('viewport'),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(38,1,0.1,100);camera.position.set(7,5,8);
@@ -68,9 +71,9 @@ try {
   function clear(){while(group.children.length){const object=group.children[0];group.remove(object);object.geometry.dispose();object.material.dispose()}}
   function startWorker(){if(typeof Worker!=='function'){workerUnavailable=true;return}try{worker=new Worker(new URL('./field-worker.js',import.meta.url),{type:'module'});workerUnavailable=false;worker.addEventListener('message',event=>{
     workerBusy=false;const result=event.data;if(!buildResultIsCurrent(result.revision,editRevision)){dirty=true;return}
-    if(result.limitExceeded){clear();dirty=false;rebuildGate.markFailure();playing=false;$('play').textContent='▶';$('play').setAttribute('aria-label','Play animation');$('play').setAttribute('aria-pressed','false');ui.status.textContent=`DETAIL LIMIT · at least ${result.edgeCount.toLocaleString()} tube edges exceed the ${TUBE_EDGE_BUDGET.toLocaleString()}-edge rebuild budget; animation paused. Lower grid detail or levels`;return}
-    if(result.error){clear();ui.status.textContent=`FIELD BUILD ERROR · ${result.error}`;rebuildGate.markFailure();playing=false;$('play').textContent='▶';$('play').setAttribute('aria-label','Play animation');$('play').setAttribute('aria-pressed','false');return}
-    try{showBuild(result)}catch(error){clear();ui.status.textContent=`RENDER ERROR: ${error.message}`;rebuildGate.markFailure();playing=false;$('play').textContent='▶';$('play').setAttribute('aria-label','Play animation');$('play').setAttribute('aria-pressed','false')}
+    if(result.limitExceeded){clear();$('time').textContent='—';resetTemporalSampling();dirty=false;rebuildGate.markFailure();playing=false;$('play').textContent='▶';$('play').setAttribute('aria-label','Play animation');$('play').setAttribute('aria-pressed','false');ui.status.textContent=`DETAIL LIMIT · at least ${result.edgeCount.toLocaleString()} tube edges exceed the ${TUBE_EDGE_BUDGET.toLocaleString()}-edge rebuild budget; animation paused. Lower grid detail or levels`;return}
+    if(result.error){clear();$('time').textContent='—';resetTemporalSampling();ui.status.textContent=`FIELD BUILD ERROR · ${result.error}`;rebuildGate.markFailure();playing=false;$('play').textContent='▶';$('play').setAttribute('aria-label','Play animation');$('play').setAttribute('aria-pressed','false');return}
+    try{showBuild(result)}catch(error){clear();$('time').textContent='—';resetTemporalSampling();ui.status.textContent=`RENDER ERROR: ${error.message}`;rebuildGate.markFailure();playing=false;$('play').textContent='▶';$('play').setAttribute('aria-label','Play animation');$('play').setAttribute('aria-pressed','false')}
   });worker.addEventListener('error',()=>{worker.terminate();worker=null;workerBusy=false;workerUnavailable=true;ui.status.textContent='BACKGROUND BUILDER UNAVAILABLE · choose at most 19 grid points';dirty=true})}catch{worker=null;workerUnavailable=true}}
   startWorker();addEventListener('pagehide',()=>{worker?.terminate();worker=null;workerBusy=false},{once:false});addEventListener('pageshow',()=>{if(!worker){startWorker();rebuildGate.retry();requestBuild()}},{once:false});
   function showBuild(result){
@@ -80,9 +83,18 @@ try {
       if(ui.mode.value==='surface'){const material=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,metalness:0.12,roughness:0.34,emissive:color,emissiveIntensity:0.12});pending.push({object:new THREE.Mesh(geometry,material),geometry,material})}
       else{try{const wire=createWireframe(THREE,geometry,{color,full:true,tubeRadius:tubular?0.012:0,tubeSegments:item.segments});geometry.dispose();pending.push(wire)}catch(error){geometry.dispose();throw error}}
     }}catch(error){for(const item of pending){item.object.geometry.dispose();if(Array.isArray(item.object.material))item.object.material.forEach(material=>material.dispose());else item.object.material.dispose()}throw error}
-    clear();pending.forEach(item=>group.add(item.object));const rendered=pending.length;ui.status.textContent=rendered?`${rendered} LEVEL${rendered===1?'':'S'} VISIBLE · GRID ${Number(ui.resolution.value)}³`:'NO SURFACE AT THIS LEVEL';
+    clear();pending.forEach(item=>group.add(item.object));const rendered=pending.length;
+    if(!rendered){$('time').textContent='—';resetTemporalSampling();ui.status.textContent='NO SURFACE AT THIS LEVEL';return}
+    const sampleTime=result.time;
+    if(Number.isFinite(sampleTime)){
+      $('time').textContent=formatPlotTime(sampleTime,Number(ui.speed.value));
+      const frequency=highestActiveAngularFrequency(set,params.terms,params.k,params.parameter);
+      const message=temporalSampler.display(frequency,sampleTime);
+      const warning=$('temporal-warning');warning.textContent=message??'';warning.hidden=message===null;
+    }else resetTemporalSampling();
+    ui.status.textContent=`${rendered} LEVEL${rendered===1?'':'S'} VISIBLE · GRID ${Number(ui.resolution.value)}³`;
   }
   function resize(){const w=viewport.clientWidth,h=viewport.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()};new ResizeObserver(resize).observe(viewport);resize();
   function buildRequest(){return{setId:set.id,equationIndex:equations.indexOf(equation),params:JSON.parse(JSON.stringify(params)),time,n:Number(ui.resolution.value),levels:selectedLevels(),tubular:ui.mode.value==='tube',revision:editRevision}}
-  let previous=performance.now(),lastRequestedRevision=-1;function frame(now){requestAnimationFrame(frame);const delta=Math.min((now-previous)/1000,.1);previous=now;if(playing){time+=delta;if(rebuildGate.canAttempt(true))dirty=true}$('time').textContent=time.toFixed(2);if(rebuildGate.canAttempt(dirty)&&!workerBusy&&now-lastBuild>180){const request=buildRequest();try{if(request.revision!==lastRequestedRevision){ui.status.textContent=`BUILDING ${request.n}³ FIELD GRID`;lastRequestedRevision=request.revision}if(worker){workerBusy=true;dirty=false;worker.postMessage(request)}else if(Number(ui.resolution.value)<=19){dirty=false;showBuild(buildFieldGrid(request))}else{clear();dirty=false;ui.status.textContent=workerUnavailable?'BACKGROUND BUILDER UNAVAILABLE · choose at most 19 grid points':'WORKERS UNAVAILABLE · choose at most 19 grid points'}}catch(error){workerBusy=false;ui.status.textContent=`RENDER ERROR: ${error.message}`;dirty=false;rebuildGate.markFailure();playing=false;$('play').textContent='▶';$('play').setAttribute('aria-label','Play animation');$('play').setAttribute('aria-pressed','false')}lastBuild=now}controls.update();renderer.render(scene,camera)}requestAnimationFrame(frame);
+  let previous=performance.now(),lastRequestedRevision=-1;function frame(now){requestAnimationFrame(frame);const delta=Math.min((now-previous)/1000,.1);previous=now;if(playing){time+=delta*Number(ui.speed.value);if(rebuildGate.canAttempt(true))dirty=true}if(rebuildGate.canAttempt(dirty)&&!workerBusy&&now-lastBuild>180){const request=buildRequest();try{if(request.revision!==lastRequestedRevision){ui.status.textContent=`BUILDING ${request.n}³ FIELD GRID`;lastRequestedRevision=request.revision}if(worker){workerBusy=true;dirty=false;worker.postMessage(request)}else if(Number(ui.resolution.value)<=19){dirty=false;showBuild(buildFieldGrid(request))}else{clear();$('time').textContent='—';resetTemporalSampling();dirty=false;ui.status.textContent=workerUnavailable?'BACKGROUND BUILDER UNAVAILABLE · choose at most 19 grid points':'WORKERS UNAVAILABLE · choose at most 19 grid points'}}catch(error){workerBusy=false;ui.status.textContent=`RENDER ERROR: ${error.message}`;dirty=false;rebuildGate.markFailure();playing=false;resetTemporalSampling();$('time').textContent='—';$('play').textContent='▶';$('play').setAttribute('aria-label','Play animation');$('play').setAttribute('aria-pressed','false')}lastBuild=now}controls.update();renderer.render(scene,camera)}requestAnimationFrame(frame);
 }catch(error){ui.status.textContent=`GRAPHICS UNAVAILABLE: ${error.message}`}

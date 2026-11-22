@@ -7,8 +7,15 @@ const settings=(equationIndex,k=3)=>({setId:'em',equationIndex,params:{amplitude
 
 test('selected grid resolution controls geometry density through the allowed 37-point maximum',()=>{
   const coarse=buildFieldGrid({...settings(0),n:13}),fine=buildFieldGrid({...settings(0),n:37});
+  assert.equal(fine.time,0,'worker results retain the sampled simulation time');
   assert.ok(fine.levels[0].positions.length>coarse.levels[0].positions.length);
   assert.equal(fine.levels[0].segments.length,0);
+});
+
+test('worker results retain time when the requested isosurface is absent',()=>{
+  const result=buildFieldGrid({...settings(0),time:1.25,n:13,levels:[2]});
+  assert.equal(result.time,1.25);
+  assert.deepEqual(result.levels,[]);
 });
 
 test('four-level default pattern remains inside the tube budget at 19 points',()=>{
