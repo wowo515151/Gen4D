@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {sets,equations,sample,formatEquation,formatFieldSummary,clampFinite} from '../fields.js';
+import {sets,equations,sample,formatEquation,formatFieldSummary,clampFinite,samplesPerShortestWavelength,samplingWarning} from '../fields.js';
 import {extractIsosurface} from '../lib/three-viz/plotters/shared/isosurface.js';
 
 test('each field satisfies its PDE at multiple points and parameter settings',()=>{
@@ -30,6 +30,19 @@ test('numeric field limits clamp finite values and replace nonfinite input',()=>
   assert.equal(clampFinite(-4,0,3,0),0);
   assert.equal(clampFinite(Number.NaN,-3,3,0),0);
   assert.equal(clampFinite(Number.POSITIVE_INFINITY,0.1,3,1),1);
+});
+
+test('sampling estimate follows the active spatial component and ignores zero waves',()=>{
+  const coarse=[{vector:[3,0,0],weight:1,phase:0}],inactive=[{vector:[3,0,0],weight:0,phase:0}],zero=[{vector:[0,0,0],weight:1,phase:0}];
+  assert.ok(Math.abs(samplesPerShortestWavelength(coarse,3,0.5)-(2*Math.PI/4.5))<1e-12);
+  assert.ok(Math.abs(samplesPerShortestWavelength(coarse,3,6/18)-(2*Math.PI/3))<1e-12);
+  assert.equal(samplesPerShortestWavelength([...coarse,...inactive],3,0.5),2*Math.PI/4.5);
+  assert.equal(samplesPerShortestWavelength(inactive,3,0.5),Infinity);
+  assert.equal(samplesPerShortestWavelength(zero,3,0.5),Infinity);
+  assert.match(samplingWarning(coarse,3,0.5,13),/13-point grid gives about 1\.4 intervals.*axis-component wavelength.*can miss or distort a surface.*Nyquist limit.*visual approximation/);
+  assert.equal(samplingWarning(coarse,1,1/3,19),null);
+  assert.equal(samplingWarning(inactive,3,0.5,13),null);
+  assert.equal(samplingWarning(zero,3,0.5,13),null);
 });
 
 test('editable per-wave vectors, relative amplitudes, and phase offsets preserve each PDE',()=>{

@@ -13,6 +13,16 @@ export const sets = [
 // The sum is divided by the number of terms, keeping |S| ≤ A for all presets.
 const term=(x,y,z)=>({vector:[x,y,z],magnitude:Math.hypot(x,y,z)});
 export function clampFinite(value,min,max,fallback=0){return Number.isFinite(value)?Math.min(max,Math.max(min,value)):fallback}
+export function samplesPerShortestWavelength(terms,k,spacing){
+  const maxComponent=terms.reduce((maximum,term)=>term.weight===0?maximum:Math.max(maximum,...term.vector.map(value=>Math.abs(value))),0);
+  return maxComponent===0?Infinity:2*Math.PI/(k*maxComponent*spacing);
+}
+export function samplingWarning(terms,k,spacing,gridPoints){
+  const samples=samplesPerShortestWavelength(terms,k,spacing);
+  if(samples>=4)return null;
+  const nyquist=samples<=2?' At or below the Nyquist limit, this component may be aliased.':'';
+  return `Sampling warning: this ${gridPoints}-point grid gives about ${samples.toFixed(1)} intervals per shortest active axis-component wavelength; fewer than 4 can miss or distort a surface.${nyquist} The plot is a visual approximation.`;
+}
 export const equations = [
   {name:'Traveling plane',terms:[term(1,0,0)]},
   {name:'Standing plane',terms:[term(1,0,0),term(-1,0,0)]},
