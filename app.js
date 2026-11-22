@@ -1,6 +1,6 @@
 import {createWireframe} from './lib/three-viz/plotters/shared/wireframe.js';
 import {retainCarPaintEnvironment} from './lib/three-viz/plotters/shared/materials.js';
-import {sets,equations,formatEquation,formatFieldSummary,clampFinite,samplingWarning} from './fields.js';
+import {sets,equations,formatEquation,formatFieldSummary,numericInputValue,samplingWarning} from './fields.js';
 import {buildFieldGrid,TUBE_EDGE_BUDGET} from './field-worker.js';
 import {LEVEL_COLORS,levelColor} from './level-colors.js';
 import {createRebuildGate,buildResultIsCurrent,pauseBuildState,canStartBuild} from './render-recovery.js';
@@ -23,7 +23,7 @@ function defaultTerms(item){return item.terms.map(({vector})=>({vector:[...vecto
 params.terms=defaultTerms(equation);
 function parameterControls(){
   $('parameters').replaceChildren();
-  for(const [key,label,initial,min,max,step] of parameters){const wrap=document.createElement('div');wrap.className='param';const name=document.createElement('label');name.htmlFor=`param-${key}`;name.textContent=key==='parameter'?set.parameterLabel:label;const input=document.createElement('input');input.id=name.htmlFor;input.type='number';input.min=min;input.max=max;input.step=step;input.value=params[key];input.addEventListener('change',()=>{params[key]=clampFinite(Number(input.value),min,max,initial);input.value=params[key];rebuildGate.retry();updateAccessibleSummary();updateSamplingWarning();requestBuild()});wrap.append(name,input);$('parameters').append(wrap)}
+  for(const [key,label,initial,min,max,step] of parameters){const wrap=document.createElement('div');wrap.className='param';const name=document.createElement('label');name.htmlFor=`param-${key}`;name.textContent=key==='parameter'?set.parameterLabel:label;const input=document.createElement('input');input.id=name.htmlFor;input.type='number';input.min=min;input.max=max;input.step=step;input.value=params[key];input.addEventListener('change',()=>{params[key]=numericInputValue(input.valueAsNumber,min,max,params[key]??initial);input.value=params[key];rebuildGate.retry();updateAccessibleSummary();updateSamplingWarning();requestBuild()});wrap.append(name,input);$('parameters').append(wrap)}
 }
 function termControls(){
   const container=$('term-controls');container.replaceChildren();
@@ -35,7 +35,7 @@ function termControls(){
       const id=`term-${index}-${key}`,wrap=document.createElement('div');wrap.className='param';
       const name=document.createElement('label');name.htmlFor=id;name.textContent=label;
       const input=document.createElement('input');input.id=id;input.type='number';input.min=min;input.max=max;input.step=step;input.value=key==='x'||key==='y'||key==='z'?term.vector['xyz'.indexOf(key)]:term[key];
-      input.addEventListener('change',()=>{const next=clampFinite(Number(input.value),min,max,0);input.value=next;if(key==='x'||key==='y'||key==='z')term.vector['xyz'.indexOf(key)]=next;else term[key]=next;rebuildGate.retry();updateEquationReadout();updateSamplingWarning();requestBuild()});
+      input.addEventListener('change',()=>{const current=key==='x'||key==='y'||key==='z'?term.vector['xyz'.indexOf(key)]:term[key],next=numericInputValue(input.valueAsNumber,min,max,current);input.value=next;if(key==='x'||key==='y'||key==='z')term.vector['xyz'.indexOf(key)]=next;else term[key]=next;rebuildGate.retry();updateEquationReadout();updateSamplingWarning();requestBuild()});
       wrap.append(name,input);details.append(wrap);
     }
     container.append(details);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {sets,equations,sample,formatEquation,formatFieldSummary,clampFinite,samplesPerShortestWavelength,samplingWarning} from '../fields.js';
+import {sets,equations,sample,formatEquation,formatFieldSummary,clampFinite,numericInputValue,samplesPerShortestWavelength,samplingWarning} from '../fields.js';
 import {extractIsosurface} from '../lib/three-viz/plotters/shared/isosurface.js';
 
 test('each field satisfies its PDE at multiple points and parameter settings',()=>{
@@ -30,6 +30,13 @@ test('numeric field limits clamp finite values and replace nonfinite input',()=>
   assert.equal(clampFinite(-4,0,3,0),0);
   assert.equal(clampFinite(Number.NaN,-3,3,0),0);
   assert.equal(clampFinite(Number.POSITIVE_INFINITY,0.1,3,1),1);
+});
+
+test('empty or invalid number inputs preserve the current field value instead of becoming zero',()=>{
+  assert.equal(numericInputValue(Number.NaN,0.1,3,1.2),1.2,'clearing a positive parameter preserves its current value');
+  assert.equal(numericInputValue(Number.NaN,-3,3,-0.4),-0.4,'clearing a signed component preserves its current value');
+  assert.equal(numericInputValue(4,-3,3,1),3,'finite values still clamp to their input bounds');
+  assert.equal(numericInputValue(0,0,3,1),0,'zero remains a valid deliberate component or weight');
 });
 
 test('sampling estimate follows the active spatial component and ignores zero waves',()=>{

@@ -13,6 +13,8 @@ export const sets = [
 // The sum is divided by the number of terms, keeping |S| ≤ A for all presets.
 const term=(x,y,z)=>({vector:[x,y,z],magnitude:Math.hypot(x,y,z)});
 export function clampFinite(value,min,max,fallback=0){return Number.isFinite(value)?Math.min(max,Math.max(min,value)):fallback}
+/** Read a number input without treating its empty/invalid state as numeric zero. */
+export function numericInputValue(value,min,max,fallback=0){return clampFinite(value,min,max,fallback)}
 export function samplesPerShortestWavelength(terms,k,spacing){
   const maxComponent=terms.reduce((maximum,term)=>term.weight===0?maximum:Math.max(maximum,...term.vector.map(value=>Math.abs(value))),0);
   return maxComponent===0?Infinity:2*Math.PI/(k*maxComponent*spacing);
