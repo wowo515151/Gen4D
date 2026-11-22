@@ -4,7 +4,7 @@
 // Each catalog member is an analytically derived real scalar plane-wave
 // superposition; this does not specify a full electromagnetic or quantum field.
 export const sets = [
-  {id:'em',name:'Electromagnetism · vacuum wave',pde:'∂²S/∂t² = c² ∇²S',dispersion:'Ω(q) = cq',description:'An idealized scalar wave satisfying the vacuum electromagnetic wave equation. An electromagnetic field also needs a transverse polarization satisfying Maxwell’s equations.',parameter:'c',parameterLabel:'Wave speed c',parameterValue:1,omega:(q,p)=>p*q},
+  {id:'em',name:'Electromagnetism · vacuum wave',pde:'∂²S/∂t² = c² ∇²S',dispersion:'Ω(q) = cq',description:'An idealized scalar wave satisfying the vacuum electromagnetic wave equation. An electromagnetic field also needs a transverse polarization satisfying Maxwell’s equations.',parameter:'c',parameterLabel:'Wave speed c',parameterValue:0.2,omega:(q,p)=>p*q},
   {id:'relativity',name:'Relativity · Klein–Gordon',pde:'∂²S/∂t² = ∇²S − μ²S',dispersion:'Ω(q) = √(q² + μ²)',description:'A real scalar Klein–Gordon field in units where c = 1. μ is the mass-frequency parameter.',parameter:'mu',parameterLabel:'Mass parameter μ',parameterValue:1,omega:(q,p)=>Math.hypot(q,p)},
   {id:'quantum',name:'Quantum · free Schrödinger',pde:'∂²S/∂t² + α² ∇⁴S = 0',dispersion:'Ω(q) = αq²',description:'The real part of a free Schrödinger wavefunction. α = ℏ/(2m); the imaginary part is needed to describe the full complex wavefunction.',parameter:'alpha',parameterLabel:'Dispersion α',parameterValue:0.5,omega:(q,p)=>p*q*q}
 ];

@@ -105,6 +105,19 @@ function installAppHarness(t,resolution,withBundledThree=false) {
   return {elements,rendererClass:bundled?.TestRenderer,stepFrame:timestamp=>{now=timestamp;const frame=frames.shift();assert.ok(frame,'app scheduled a frame');frame(timestamp)}};
 }
 
+test('app starts with the electromagnetic standing-plane tube at c = 0.2', async t => {
+  const {elements,stepFrame}=installAppHarness(t,19);
+  elements.mode.value='tube';
+  await import(`../app.js?default-state=${Date.now()}`);
+  stepFrame(1000);
+  const request=FakeWorker.instances[0].requests[0];
+  assert.equal(request.setId,'em');
+  assert.equal(request.equationIndex,1);
+  assert.equal(request.params.parameter,0.2);
+  assert.deepEqual(request.params.terms.map(({vector})=>vector),[[1,0,0],[-1,0,0]]);
+  assert.equal(request.tubular,true);
+});
+
 test('reachable boundary worker result reaches the real Three.js scene and UI snapshot', async t => {
   const {elements,rendererClass,stepFrame}=installAppHarness(t,13,true);
   await import(`../app.js?boundary-integration=${Date.now()}`);
@@ -154,6 +167,10 @@ test('reachable boundary worker result reaches the real Three.js scene and UI sn
   assert.equal(mesh.isMesh,true);
   assert.equal(mesh.geometry.getAttribute('position').count,288*3);
   assert.equal(mesh.material.color.getHex(),levelColor(0),'the rendered mesh uses the matching first-level color');
+  assert.equal(mesh.material.metalness,0.68,'solid surfaces use the metallic car-paint body');
+  assert.equal(mesh.material.roughness,0.2,'solid surfaces use the glossy car-paint finish');
+  assert.equal(mesh.material.clearcoat,0.82,'solid surfaces include a reflective clearcoat');
+  assert.equal(mesh.material.envMapIntensity,0.65,'solid paint keeps the dark-blue body readable against the softbox environment');
 });
 
 test('real controls can configure and render an internal tangent plane with phase opposition', async t => {
@@ -200,7 +217,7 @@ test('three-level EM tangent field keeps level identity in tubes and recovers fr
     assert.ok(input,`${key} is exposed by the real parameter controls`);
     input.value=String(value); input.dispatch('change');
   };
-  parameter('k',1.2); parameter('phase',0.75);
+  parameter('k',1.2); parameter('phase',0.75); parameter('parameter',1);
   const edit=(termIndex,key,value)=>{
     const input=elements['term-controls'].children[termIndex].children.flatMap(child=>child.children).find(child=>child.id===`term-${termIndex}-${key}`);
     assert.ok(input,`term ${termIndex+1} exposes ${key}`);
@@ -311,6 +328,7 @@ test('app discards a stale worker reply and displays a paused no-surface snapsho
   });
 
   await import(`../app.js?integration=${Date.now()}`);
+  elements.equation.value='5'; elements.equation.dispatch('change');
   const worker=FakeWorker.instances[0];
   assert.ok(worker,'app starts its field worker');
   const stepFrame=timestamp=>{now=timestamp;const frame=frames.shift();assert.ok(frame,'app scheduled a frame');frame(timestamp);};

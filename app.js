@@ -1,5 +1,5 @@
 import {createWireframe} from './lib/three-viz/plotters/shared/wireframe.js';
-import {retainCarPaintEnvironment} from './lib/three-viz/plotters/shared/materials.js';
+import {createCarPaintMaterial,retainCarPaintEnvironment} from './lib/three-viz/plotters/shared/materials.js';
 import {sets,equations,formatEquation,formatFieldSummary,numericInputValue,samplingWarning} from './fields.js';
 import {buildFieldGrid,TUBE_EDGE_BUDGET} from './field-worker.js';
 import {LEVEL_COLORS,levelColor} from './level-colors.js';
@@ -9,7 +9,7 @@ import {createSimulationClock} from './simulation-clock.js';
 
 const $=id=>document.getElementById(id), THREE=window.THREE;
 const ui={set:$('set'),equation:$('equation'),mode:$('mode'),resolution:$('resolution'),levels:$('levels'),level:$('level'),speed:$('playback-speed'),status:$('status')};
-let set=sets[0], equation=equations[5], params={amplitude:1,k:1.2,phase:0,parameter:1}, time=0, displayedSnapshotTime=null, playing=true, dirty=true, pendingEdit=true, lastBuild=0, editRevision=0;
+let set=sets[0], equation=equations[1], params={amplitude:1,k:1.2,phase:0,parameter:sets[0].parameterValue}, time=0, displayedSnapshotTime=null, playing=true, dirty=true, pendingEdit=true, lastBuild=0, editRevision=0;
 const rebuildGate=createRebuildGate();
 const temporalSampler=createTemporalSampler();
 const simulationClock=createSimulationClock({now:performance.now(),time,playing,speed:Number(ui.speed.value),visible:document.visibilityState==='visible'});
@@ -17,7 +17,7 @@ function resetTemporalSampling(){temporalSampler.reset();$('temporal-warning').h
 function requestBuild(){editRevision++;dirty=true;pendingEdit=true;resetTemporalSampling()}
 for(const item of sets) ui.set.add(new Option(item.name,item.id));
 for(const [index,item] of equations.entries()) ui.equation.add(new Option(item.name,String(index)));
-ui.equation.value='5';
+ui.equation.value='1';
 const parameters=[['amplitude','Amplitude A',1,0.1,3,0.1],['k','Wave number k',1.2,0.1,3,0.1],['phase','Phase φ',0,-6.28,6.28,0.1],['parameter','',1,0.1,3,0.1]];
 function defaultTerms(item){return item.terms.map(({vector})=>({vector:[...vector],weight:1,phase:0}))}
 params.terms=defaultTerms(equation);
@@ -83,7 +83,7 @@ try {
     const tubular=ui.mode.value==='tube';
     const pending=[];try{for(const item of result.levels){
       const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(item.positions,3));geometry.computeVertexNormals();const color=levelColor(item.levelIndex);
-      if(ui.mode.value==='surface'){const material=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,metalness:0.12,roughness:0.34,emissive:color,emissiveIntensity:0.12});pending.push({object:new THREE.Mesh(geometry,material),geometry,material})}
+      if(ui.mode.value==='surface'){const material=createCarPaintMaterial(THREE,color,{side:THREE.DoubleSide,metalness:0.68,roughness:0.2,envMapIntensity:0.65,clearcoat:0.82,clearcoatRoughness:0.08});pending.push({object:new THREE.Mesh(geometry,material),geometry,material})}
       else{try{const wire=createWireframe(THREE,geometry,{color,full:true,tubeRadius:tubular?0.012:0,tubeSegments:item.segments});geometry.dispose();pending.push(wire)}catch(error){geometry.dispose();throw error}}
     }}catch(error){for(const item of pending){item.object.geometry.dispose();if(Array.isArray(item.object.material))item.object.material.forEach(material=>material.dispose());else item.object.material.dispose()}throw error}
     clear();pending.forEach(item=>group.add(item.object));const rendered=pending.length;pendingEdit=false;

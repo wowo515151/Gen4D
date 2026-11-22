@@ -18,6 +18,12 @@ test('each field satisfies its PDE at multiple points and parameter settings',()
   }
 });
 
+test('electromagnetic standing-wave defaults use the requested wave speed',()=>{
+  assert.equal(sets[0].parameterValue,0.2);
+  assert.equal(equations[1].name,'Standing plane');
+  assert.deepEqual(equations[1].terms.map(({vector})=>vector),[[1,0,0],[-1,0,0]]);
+});
+
 test('catalog has ten distinct patterns with legible formulas',()=>{
   assert.equal(equations.length,10);
   assert.equal(new Set(equations.map(eq=>JSON.stringify(eq.terms))).size,10);
