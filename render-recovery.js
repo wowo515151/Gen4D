@@ -7,3 +7,7 @@ export function createRebuildGate(){
     retry(){blocked=false},
   };
 }
+
+export function buildResultIsCurrent(resultRevision,currentRevision){
+  return resultRevision===currentRevision;
+}

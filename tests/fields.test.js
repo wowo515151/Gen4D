@@ -43,6 +43,7 @@ test('sampling estimate follows the active spatial component and ignores zero wa
   assert.equal(samplingWarning(coarse,1,1/3,19),null);
   assert.equal(samplingWarning(inactive,3,0.5,13),null);
   assert.equal(samplingWarning(zero,3,0.5,13),null);
+  assert.ok(samplesPerShortestWavelength(coarse,3,6/36)>4,'37 points resolve the maximum 9 rad/unit component at at least four intervals per wavelength');
 });
 
 test('editable per-wave vectors, relative amplitudes, and phase offsets preserve each PDE',()=>{
