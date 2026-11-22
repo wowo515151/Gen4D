@@ -105,16 +105,17 @@ function installAppHarness(t,resolution,withBundledThree=false) {
   return {elements,rendererClass:bundled?.TestRenderer,stepFrame:timestamp=>{now=timestamp;const frame=frames.shift();assert.ok(frame,'app scheduled a frame');frame(timestamp)}};
 }
 
-test('app starts with the electromagnetic standing-plane tube at c = 0.2', async t => {
+test('app starts with the electromagnetic three-axis standing-field tube at c = 0.2', async t => {
   const {elements,stepFrame}=installAppHarness(t,19);
   elements.mode.value='tube';
   await import(`../app.js?default-state=${Date.now()}`);
   stepFrame(1000);
   const request=FakeWorker.instances[0].requests[0];
   assert.equal(request.setId,'em');
-  assert.equal(request.equationIndex,1);
+  assert.equal(request.equationIndex,6);
   assert.equal(request.params.parameter,0.2);
-  assert.deepEqual(request.params.terms.map(({vector})=>vector),[[1,0,0],[-1,0,0]]);
+  assert.equal(equations[request.equationIndex].name,'Three-axis standing field');
+  assert.deepEqual(request.params.terms.map(({vector})=>vector),[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]);
   assert.equal(request.tubular,true);
 });
 
