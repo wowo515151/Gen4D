@@ -40,7 +40,45 @@ class FakeWorker {
   addEventListener(type,callback) { (this.listeners[type]??=[]).push(callback); }
   postMessage(request) { this.requests.push(request); }
   reply(result) { for(const callback of this.listeners.message??[]) callback({data:result}); }
+  fail(error=new Error('worker failed')) { for(const callback of this.listeners.error??[]) callback({error,message:error.message,preventDefault(){}}); }
   terminate() {}
+}
+
+function installAppHarness(t,resolution) {
+  const ids=['set','equation','mode','resolution','levels','level','playback-speed','status','temporal-warning','parameters','term-controls','resolution-value','sampling-warning','formula','field-name','pde','description','levels-value','level-value','legend','play','time','reset','viewport','field-accessible-summary'];
+  const elements=Object.fromEntries(ids.map(id=>[id,new Element(id)]));
+  elements.resolution.value=String(resolution); elements.levels.value='1'; elements.level.value='0.25';
+  elements.mode.value='surface'; elements['playback-speed'].value='1';
+  const frames=[]; let now=0;
+  const documentListeners={};
+  const globalNames=['document','window','Worker','devicePixelRatio','Option','ResizeObserver','requestAnimationFrame','addEventListener','performance'];
+  const originalGlobals=new Map(globalNames.map(name=>[name,Object.getOwnPropertyDescriptor(globalThis,name)]));
+  globalThis.document={visibilityState:'visible',getElementById:id=>elements[id],createElement:()=>new Element(),createTextNode:text=>({textContent:text}),addEventListener(type,callback){(documentListeners[type]??=[]).push(callback)}};
+  globalThis.window={THREE:{
+    Scene:class extends Object3D {}, Group:class extends Object3D {},
+    PerspectiveCamera:class {constructor(){this.position={set(){}};} updateProjectionMatrix(){} lookAt(){}},
+    WebGLRenderer:class {constructor(){this.domElement={};} setPixelRatio(){} setSize(){} render(){}},
+    OrbitControls:class {constructor(){this.target=new Vector3();} update(){}},
+    HemisphereLight:class {}, DirectionalLight:class {constructor(){this.position={set(){}};}},
+    BoxGeometry:Geometry, EdgesGeometry:Geometry, LineBasicMaterial:Material, LineSegments:class {constructor(geometry,material){this.geometry=geometry;this.material=material;}},
+    BufferGeometry:Geometry, Float32BufferAttribute:class {constructor(array,itemSize){this.array=array;this.itemSize=itemSize;}},
+    MeshStandardMaterial:Material, Mesh:class {constructor(geometry,material){this.geometry=geometry;this.material=material;}},
+    Vector3,
+  }};
+  globalThis.Worker=FakeWorker; globalThis.devicePixelRatio=1;
+  globalThis.Option=class {constructor(text,value){this.text=text;this.value=value;}};
+  globalThis.ResizeObserver=class {constructor(callback){this.callback=callback;} observe(){this.callback();}};
+  globalThis.requestAnimationFrame=callback=>frames.push(callback);
+  globalThis.addEventListener=()=>{};
+  Object.defineProperty(globalThis,'performance',{configurable:true,value:{now:()=>now}});
+  t.after(()=>{
+    for(const [name,descriptor] of originalGlobals){
+      if(descriptor) Object.defineProperty(globalThis,name,descriptor);
+      else delete globalThis[name];
+    }
+    FakeWorker.instances=[];
+  });
+  return {elements,stepFrame:timestamp=>{now=timestamp;const frame=frames.shift();assert.ok(frame,'app scheduled a frame');frame(timestamp)}};
 }
 
 test('app discards a stale worker reply and displays a paused no-surface snapshot', async t => {
@@ -113,4 +151,28 @@ test('app discards a stale worker reply and displays a paused no-surface snapsho
   assert.equal(elements.play.attributes['aria-pressed'],'false','pause action reaches the app handler');
   assert.equal(elements.time.textContent,'1.20','pausing anchors the clock to the displayed no-surface snapshot');
   assert.equal(elements.status.textContent,'NO SURFACE AT THIS LEVEL · FIELD SNAPSHOT UPDATED');
+});
+
+test('worker error callback pauses large grids and recovery uses the 19-point fallback', async t => {
+  const {elements,stepFrame}=installAppHarness(t,25);
+  await import(`../app.js?worker-error-integration=${Date.now()}`);
+  const worker=FakeWorker.instances[0];
+  assert.ok(worker,'app starts its field worker');
+
+  stepFrame(1000);
+  assert.equal(worker.requests.length,1,'the initial 25-point grid is submitted to the worker');
+  worker.fail();
+  assert.equal(elements.status.textContent,'BACKGROUND BUILDER UNAVAILABLE · choose at most 19 grid points','the production worker error callback updates status');
+
+  stepFrame(1200);
+  assert.equal(elements.status.textContent,'BACKGROUND BUILDER UNAVAILABLE · choose at most 19 grid points');
+  assert.equal(elements.play.attributes['aria-pressed'],'false','an unsupported large-grid build pauses playback');
+  assert.equal(elements.time.textContent,'—','failed worker output does not present a sampled time');
+
+  elements.resolution.value='19';
+  elements.resolution.dispatch('change');
+  stepFrame(2000);
+  assert.equal(worker.requests.length,1,'the failed worker stays terminated and is not reused');
+  assert.match(elements.status.textContent,/^(\d+ LEVELS? VISIBLE · GRID 19³|NO SURFACE AT THIS LEVEL · FIELD SNAPSHOT UPDATED)$/,'a user resolution change recovers through the real synchronous field builder');
+  assert.notEqual(elements.time.textContent,'—','the fallback snapshot restores displayed sampled time');
 });
