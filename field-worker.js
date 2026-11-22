@@ -11,7 +11,7 @@ export function buildFieldGrid({setId,equationIndex,params,time,n,levels,tubular
   const cells=axis.map(x=>axis.map(y=>axis.map(z=>({value:sample(set,equation,params,x,y,z,time),row:null}))));
   const grid={axes:[axis,axis,axis],cells,world:(coordinates,index)=>coordinates[index]},result=[];
   let totalTubeEdges=0;
-  for(const level of levels)try{
+  for(const [levelIndex,level] of levels.entries())try{
     const surface=extractIsosurface(grid,level*params.amplitude),positions=surface.positions;
     let segments=new Float32Array();
     if(tubular)try{
@@ -19,7 +19,7 @@ export function buildFieldGrid({setId,equationIndex,params,time,n,levels,tubular
       segments=uniqueTriangleSegmentPositions({getAttribute:()=>({count:positions.length/3,getX:index=>positions[index*3],getY:index=>positions[index*3+1],getZ:index=>positions[index*3+2]}),getIndex:()=>null},{maxEdges:TUBE_EDGE_BUDGET-totalTubeEdges});
     }catch(error){if(error.code==='TUBE_EDGE_LIMIT')return{revision,time,limitExceeded:true,edgeCount:totalTubeEdges+error.edgeCount,levels:[]};throw error}
     totalTubeEdges+=segments.length/6;
-    result.push({positions,segments});
+    result.push({levelIndex,level,positions,segments});
   }catch(error){if(!String(error.message).startsWith('No scalar grid surface'))throw error}
   return{revision,time,levels:result};
 }

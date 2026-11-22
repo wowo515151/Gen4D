@@ -2,6 +2,7 @@ import {createWireframe} from './lib/three-viz/plotters/shared/wireframe.js';
 import {retainCarPaintEnvironment} from './lib/three-viz/plotters/shared/materials.js';
 import {sets,equations,formatEquation,formatFieldSummary,clampFinite,samplingWarning} from './fields.js';
 import {buildFieldGrid,TUBE_EDGE_BUDGET} from './field-worker.js';
+import {LEVEL_COLORS,levelColor} from './level-colors.js';
 import {createRebuildGate,buildResultIsCurrent} from './render-recovery.js';
 import {createTemporalSampler,formatPlotTime,highestActiveAngularFrequency} from './temporal-sampling.js';
 
@@ -48,13 +49,12 @@ function updateSamplingWarning(){
 function updateEquationReadout(){$('formula').textContent=formatEquation(set,equation,params.terms);$('field-name').textContent=`${set.name} / ${equation.name}`;$('pde').textContent=set.pde;updateAccessibleSummary()}
 function updateLabels(){updateEquationReadout();$('description').textContent=set.description;parameterControls();termControls();updateSamplingWarning();rebuildGate.retry();requestBuild()}
 ui.set.addEventListener('change',()=>{set=sets.find(item=>item.id===ui.set.value);params.parameter=set.parameterValue;updateLabels()});ui.equation.addEventListener('change',()=>{equation=equations[Number(ui.equation.value)];params.terms=defaultTerms(equation);updateLabels()});
-const colors=[0x55c9e6,0x82e5c6,0xeaa5b2,0xd4b5ff];
 function selectedLevels(){const count=Number(ui.levels.value);return count===1?[Number(ui.level.value)]:Array.from({length:count},(_,i)=>-0.75+1.5*(i+1)/(count+1))}
 function updateDisplay(){
   $('levels-value').textContent=ui.levels.value;$('level-value').textContent=ui.level.value;
   ui.level.disabled=Number(ui.levels.value)>1;
   const legend=$('legend');legend.replaceChildren();
-  selectedLevels().forEach((level,index)=>{const item=document.createElement('span'),swatch=document.createElement('i');swatch.style.backgroundColor=`#${colors[index].toString(16).padStart(6,'0')}`;swatch.setAttribute('aria-hidden','true');item.append(swatch,document.createTextNode(`${Number(level.toFixed(3))} A`));legend.append(item)});
+  selectedLevels().forEach((level,index)=>{const item=document.createElement('span'),swatch=document.createElement('i');swatch.style.backgroundColor=`#${levelColor(index).toString(16).padStart(6,'0')}`;swatch.setAttribute('aria-hidden','true');item.append(swatch,document.createTextNode(`${Number(level.toFixed(3))} A`));legend.append(item)});
   updateSamplingWarning();rebuildGate.retry();requestBuild();
 }
 ui.resolution.addEventListener('change',()=>{updateSamplingWarning();rebuildGate.retry();requestBuild()});for(const control of [ui.mode,ui.levels,ui.level]) control.addEventListener('input',updateDisplay);
@@ -78,8 +78,8 @@ try {
   startWorker();addEventListener('pagehide',()=>{worker?.terminate();worker=null;workerBusy=false},{once:false});addEventListener('pageshow',()=>{if(!worker){startWorker();rebuildGate.retry();requestBuild()}},{once:false});
   function showBuild(result){
     const tubular=ui.mode.value==='tube';
-    const pending=[];try{for(const [i,item] of result.levels.entries()){
-      const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(item.positions,3));geometry.computeVertexNormals();const color=colors[i%colors.length];
+    const pending=[];try{for(const item of result.levels){
+      const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(item.positions,3));geometry.computeVertexNormals();const color=levelColor(item.levelIndex);
       if(ui.mode.value==='surface'){const material=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,metalness:0.12,roughness:0.34,emissive:color,emissiveIntensity:0.12});pending.push({object:new THREE.Mesh(geometry,material),geometry,material})}
       else{try{const wire=createWireframe(THREE,geometry,{color,full:true,tubeRadius:tubular?0.012:0,tubeSegments:item.segments});geometry.dispose();pending.push(wire)}catch(error){geometry.dispose();throw error}}
     }}catch(error){for(const item of pending){item.object.geometry.dispose();if(Array.isArray(item.object.material))item.object.material.forEach(material=>material.dispose());else item.object.material.dispose()}throw error}
